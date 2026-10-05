@@ -144,6 +144,25 @@
                     
                     document.getElementById('searchSection').classList.add('hidden');
                     document.getElementById('formSection').classList.remove('hidden');
+                } else if (result.status === 'not_found' && result.headers) {
+                    // JIKA DATA TIDAK DITEMUKAN: Tampilkan form baru
+                    showAlert('Data belum terdaftar. Silakan lengkapi form pendataan baru di bawah ini.', 'info');
+                    currentStudentRow = -1; // Penanda bahwa ini adalah data baru (insert)
+                    currentHeaders = result.headers;
+                    
+                    // Siapkan object kosong untuk form, tapi isi otomatis NISN dan Nama dari input pencarian
+                    let emptyData = {};
+                    currentHeaders.forEach(h => {
+                        const hLower = h.toLowerCase();
+                        if (hLower.includes('nisn')) emptyData[h] = inputNisn;
+                        else if (hLower.includes('nama')) emptyData[h] = inputNama;
+                        else emptyData[h] = '';
+                    });
+                    
+                    renderForm(emptyData, currentHeaders);
+                    
+                    document.getElementById('searchSection').classList.add('hidden');
+                    document.getElementById('formSection').classList.remove('hidden');
                 } else {
                     showAlert(result.message || 'Data tidak ditemukan di database.', 'error');
                 }
@@ -207,8 +226,6 @@
         // Event Menyimpan Form ke Google Spreadsheet
         document.getElementById('studentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            if(currentStudentRow === -1) return;
 
             const formData = new FormData(e.target);
             const dataToUpdate = {};
@@ -218,9 +235,9 @@
                 dataToUpdate[key] = value.trim();
             }
 
-            // Payload untuk dikirim ke GAS
+            // Payload untuk dikirim ke GAS (Bedakan antara update data lama vs insert data baru)
             const payload = {
-                action: 'update',
+                action: currentStudentRow === -1 ? 'insert' : 'update',
                 row: currentStudentRow,
                 data: dataToUpdate
             };
