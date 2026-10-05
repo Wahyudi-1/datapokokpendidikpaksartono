@@ -8,30 +8,33 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
-        /* Animasi transisi ringan */
         .fade-in { animation: fadeIn 0.4s ease-in-out; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        /* Spinner Animasi Loading */
+        .loader {
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8">
 
     <div class="max-w-3xl mx-auto">
-        <!-- Header -->
         <header class="text-center mb-8">
             <h1 class="text-3xl font-bold text-blue-700 mb-2">Portal Pembaruan Data Siswa</h1>
             <p class="text-slate-600">Verifikasi dan lengkapi <strong>DATA SISWA DAPODIK kelas X</strong> Anda.</p>
         </header>
 
         <!-- Tempat Notifikasi (Alerts) -->
-        <div id="alertBox" class="hidden mb-6 p-4 rounded-lg text-sm font-medium fade-in transition-all"></div>
-
-        <!-- Opsi Upload CSV Jika Fetch Lokal Gagal -->
-        <div id="uploadSection" class="bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-6 shadow-sm hidden">
-            <p class="text-sm text-yellow-800 mb-3">Sistem tidak dapat memuat file <strong>DATA_SISWA_DAPODIK_kelas_X.csv</strong> secara otomatis (mungkin karena batasan browser lokal). Silakan unggah file secara manual:</p>
-            <input type="file" id="csvFileInput" accept=".csv" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-100 file:text-yellow-700 hover:file:bg-yellow-200"/>
+        <div id="alertBox" class="hidden mb-6 p-4 rounded-lg text-sm font-medium fade-in transition-all flex items-center justify-between">
+            <span id="alertMessage"></span>
         </div>
 
         <!-- Bagian 1: Pencarian Data -->
@@ -46,8 +49,9 @@
                     <label class="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
                     <input type="text" id="inputNama" placeholder="Masukkan nama sesuai ijazah sebelumnya..." class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all">
                 </div>
-                <button id="btnSearch" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all active:scale-95 flex justify-center items-center gap-2">
-                    Cek Data Saya
+                <button id="btnSearch" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all active:scale-95 flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <span id="btnSearchText">Cek Data Saya</span>
+                    <div id="btnSearchLoader" class="hidden w-5 h-5 border-2 border-white rounded-full loader"></div>
                 </button>
             </div>
         </div>
@@ -55,20 +59,21 @@
         <!-- Bagian 2: Form Pengisian / Pembaruan Data (Awalnya Disembunyikan) -->
         <div id="formSection" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 hidden fade-in">
             <h2 class="text-xl font-semibold text-slate-800 mb-4 border-b pb-2">Langkah 2: Lengkapi Data Dapodik</h2>
-            <p class="text-sm text-slate-500 mb-6">Silakan periksa data di bawah ini. Isi bagian yang masih kosong dan perbaiki jika ada yang salah.</p>
+            <p class="text-sm text-slate-500 mb-6">Isi bagian yang masih kosong dan perbaiki jika ada yang salah. Data akan langsung diperbarui ke database sekolah.</p>
             
             <form id="studentForm" class="space-y-5">
-                <!-- Data ini di-generate secara dinamis oleh JavaScript berdasarkan header CSV -->
+                <!-- Data ini di-generate secara dinamis dari Google Spreadsheet -->
                 <div id="dynamicFields" class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <!-- Input Fields akan dimasukkan ke sini -->
                 </div>
 
-                <div class="pt-6 border-t mt-6 flex gap-3">
-                    <button type="button" id="btnCancel" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-all active:scale-95">
+                <div class="pt-6 border-t mt-6 flex flex-col md:flex-row gap-3">
+                    <button type="button" id="btnCancel" class="w-full md:w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-all active:scale-95">
                         Batal
                     </button>
-                    <button type="submit" id="btnSave" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all active:scale-95">
-                        Simpan & Unduh Data
+                    <button type="submit" id="btnSave" class="w-full md:w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all active:scale-95 flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                        <span id="btnSaveText">Simpan ke Spreadsheet</span>
+                        <div id="btnSaveLoader" class="hidden w-5 h-5 border-2 border-white rounded-full loader"></div>
                     </button>
                 </div>
             </form>
@@ -76,103 +81,40 @@
     </div>
 
     <script>
+        // =========================================================================
+        // PENTING: GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA
+        // =========================================================================
+        const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycby_SAMPLE_UBAH_DISINI_w21kXU/exec'; 
+
         // State management
-        let parsedData = [];     // Array untuk menyimpan seluruh baris data siswa (Object)
-        let csvHeaders = [];     // Array untuk menyimpan header kolom
-        let currentStudentIndex = -1; // Index siswa yang sedang dicari/diedit
+        let currentStudentRow = -1; 
+        let currentHeaders = [];
 
-        // Fungsi dasar untuk Parsing CSV (Mendukung koma di dalam tanda kutip ganda)
-        function parseCSV(text) {
-            let p = '', row = [''], ret = [row], i = 0, r = 0, s = !0, l;
-            for (l of text) {
-                if ('"' === l) {
-                    if (s && l === p) row[i] += l;
-                    s = !s;
-                } else if (',' === l && s) l = row[++i] = '';
-                else if ('\n' === l && s) {
-                    if ('\r' === p) row[i] = row[i].slice(0, -1);
-                    row = ret[++r] = [l = '']; i = 0;
-                } else row[i] += l;
-                p = l;
-            }
-            return ret.filter(r => r.length > 1 || r[0] !== ""); // Hapus baris kosong
-        }
-
-        // Mengonversi Array of Arrays menjadi Array of Objects berdasarkan Header
-        function processCSVData(matrix) {
-            if(matrix.length < 1) return false;
-            // Ambil dan bersihkan header
-            csvHeaders = matrix[0].map(header => header.trim());
-            
-            parsedData = [];
-            for (let i = 1; i < matrix.length; i++) {
-                let rowData = matrix[i];
-                let studentObj = {};
-                csvHeaders.forEach((header, index) => {
-                    studentObj[header] = rowData[index] ? rowData[index].trim() : "";
-                });
-                parsedData.push(studentObj);
-            }
-            return true;
-        }
-
-        // Fungsi untuk menampilkan Alert
+        // Fungsi untuk menampilkan Alert UI
         function showAlert(message, type = 'error') {
             const alertBox = document.getElementById('alertBox');
+            const alertMessage = document.getElementById('alertMessage');
+            
             alertBox.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
             
             if(type === 'error') alertBox.classList.add('bg-red-100', 'text-red-800');
             else if(type === 'success') alertBox.classList.add('bg-green-100', 'text-green-800');
             else alertBox.classList.add('bg-blue-100', 'text-blue-800');
             
-            alertBox.innerHTML = message;
+            alertMessage.innerHTML = message;
         }
 
-        // Memuat file DATA_SISWA_DAPODIK_kelas_X.csv saat pertama kali dibuka
-        async function loadInitialCSV() {
-            try {
-                // Mencoba memuat file secara otomatis menggunakan Fetch API
-                const response = await fetch('DATA_SISWA_DAPODIK_kelas_X.csv');
-                if (!response.ok) throw new Error('File tidak ditemukan atau akses ditolak.');
-                const csvText = await response.text();
-                const matrix = parseCSV(csvText);
-                if(processCSVData(matrix)) {
-                    console.log("Data berhasil dimuat. Total siswa:", parsedData.length);
-                }
-            } catch (error) {
-                console.warn("Gagal memuat otomatis:", error.message);
-                // Menampilkan opsi upload file kepada pengguna (Fallback)
-                document.getElementById('uploadSection').classList.remove('hidden');
-                
-                // Menyiapkan Dummy Data agar kode tetap bisa didemonstrasikan jika file tidak ada
-                const dummyCSVText = `NISN,Nama,Tempat Lahir,Tanggal Lahir,Jenis Kelamin,Agama,Alamat Lengkap,Nama Ayah,Nama Ibu
-1234567890,Budi Santoso,Jakarta,2008-05-12,Laki-laki,Islam,Jl. Merdeka No 1,Agus,Siti
-0987654321,Siti Aminah,Bandung,,Perempuan,,,,
-1122334455,Andi Wijaya,Surabaya,2008-08-17,Laki-laki,Kristen,Jl. Pahlawan No 10,Budi,`;
-                const matrix = parseCSV(dummyCSVText);
-                processCSVData(matrix);
-                showAlert('Menggunakan data sampel sementara karena file asli tidak ditemukan secara lokal. Anda juga bisa mengunggah file yang benar.', 'blue');
+        function hideAlert() {
+            document.getElementById('alertBox').classList.add('hidden');
+        }
+
+        // Event Pencarian Siswa (GET ke AppScript)
+        document.getElementById('btnSearch').addEventListener('click', async function() {
+            if (APPSCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbwRuZt6e3LKp4KKT1ihCUFWwKy9ihI6XH9xbZLojDtYlVzal15MWapiN5hzKdIIC-0ykw/exec')) {
+                showAlert('Error: URL Google Apps Script belum disetel oleh Admin.', 'error');
+                return;
             }
-        }
 
-        // Handle unggah file CSV manual (Fallback)
-        document.getElementById('csvFileInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const text = event.target.result;
-                const matrix = parseCSV(text);
-                if(processCSVData(matrix)) {
-                    document.getElementById('uploadSection').classList.add('hidden');
-                    showAlert('File CSV berhasil dimuat secara manual. Silakan lakukan pencarian.', 'success');
-                }
-            };
-            reader.readAsText(file);
-        });
-
-        // Event Pencarian Siswa
-        document.getElementById('btnSearch').addEventListener('click', function() {
             const inputNisn = document.getElementById('inputNisn').value.trim();
             const inputNama = document.getElementById('inputNama').value.trim();
 
@@ -181,55 +123,71 @@
                 return;
             }
 
-            // Temukan siswa berdasarkan NISN dan kecocokan Nama (Case-insensitive)
-            currentStudentIndex = parsedData.findIndex(s => {
-                // Pastikan kolom CSV bernama 'NISN' dan 'Nama' (Bisa disesuaikan jika nama kolom berbeda)
-                const sNisn = s['NISN'] || s['nisn'] || s['Nisn'] || '';
-                const sNama = s['Nama'] || s['nama'] || s['NAMA'] || '';
-                return sNisn === inputNisn && sNama.toLowerCase().includes(inputNama.toLowerCase());
-            });
+            // Ubah UI menjadi Loading
+            hideAlert();
+            const btnSearch = document.getElementById('btnSearch');
+            document.getElementById('btnSearchText').innerText = "Mencari Data...";
+            document.getElementById('btnSearchLoader').classList.remove('hidden');
+            btnSearch.disabled = true;
 
-            if (currentStudentIndex !== -1) {
-                // Ditemukan
-                showAlert('Data ditemukan! Silakan lengkapi atau perbaiki form di bawah ini.', 'success');
-                renderForm(parsedData[currentStudentIndex]);
-                document.getElementById('searchSection').classList.add('hidden');
-                document.getElementById('formSection').classList.remove('hidden');
-            } else {
-                // Tidak ditemukan
-                showAlert('Data tidak ditemukan. Pastikan NISN dan Nama yang dimasukkan sudah benar sesuai yang terdaftar di spreadsheet.', 'error');
+            try {
+                // Fetch data dari Google Sheets via GET request
+                const response = await fetch(`${APPSCRIPT_URL}?action=search&nisn=${encodeURIComponent(inputNisn)}&nama=${encodeURIComponent(inputNama)}`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showAlert('Data berhasil ditemukan! Silakan lengkapi form di bawah.', 'success');
+                    currentStudentRow = result.row;
+                    currentHeaders = result.headers;
+                    
+                    renderForm(result.data, currentHeaders);
+                    
+                    document.getElementById('searchSection').classList.add('hidden');
+                    document.getElementById('formSection').classList.remove('hidden');
+                } else {
+                    showAlert(result.message || 'Data tidak ditemukan di database.', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showAlert('Gagal terhubung ke server. Periksa koneksi internet Anda.', 'error');
+            } finally {
+                // Kembalikan UI Button
+                document.getElementById('btnSearchText').innerText = "Cek Data Saya";
+                document.getElementById('btnSearchLoader').classList.add('hidden');
+                btnSearch.disabled = false;
             }
         });
 
-        // Membuat Input Fields secara dinamis berdasarkan Header CSV
-        function renderForm(studentData) {
+        // Membuat Input Fields secara dinamis berdasarkan respon Spreadsheet
+        function renderForm(studentData, headers) {
             const container = document.getElementById('dynamicFields');
             container.innerHTML = ''; // Kosongkan form sebelumnya
 
-            csvHeaders.forEach(header => {
-                // Jangan buat input untuk field yang tidak relevan atau id sistem jika ada
-                if(!header) return;
+            headers.forEach(header => {
+                if(!header) return; // Lewati kolom kosong tanpa header
 
                 const value = studentData[header] || '';
-                // Menentukan apakah field adalah Key (NISN) sebaiknya readonly
-                const isReadOnly = header.toLowerCase() === 'nisn';
                 
-                // Menentukan tipe input berdasarkan nama header
+                // Kunci field utama agar tidak diubah secara bebas oleh siswa
+                const headerLower = header.toLowerCase();
+                const isReadOnly = headerLower === 'nisn' || headerLower === 'nama';
+                
+                // Tentukan tipe input
                 let inputType = 'text';
-                if(header.toLowerCase().includes('tanggal')) inputType = 'date';
+                if(headerLower.includes('tanggal') || headerLower.includes('tgl')) inputType = 'date';
                 
                 const div = document.createElement('div');
-                // Alamat biasanya butuh text area (menggunakan col-span-2)
-                if(header.toLowerCase().includes('alamat')) {
+                // Elemen alamat biasanya butuh space lebih luas
+                if(headerLower.includes('alamat')) {
                     div.className = "md:col-span-2";
                 }
 
                 div.innerHTML = `
                     <label class="block text-sm font-medium text-slate-700 mb-1">${header}</label>
                     <input type="${inputType}" name="${header}" value="${value}" 
-                        class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none ${isReadOnly ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white'}"
+                        class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all ${isReadOnly ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white'}"
                         ${isReadOnly ? 'readonly' : ''}
-                        placeholder="Isi ${header}..."
+                        placeholder="${isReadOnly ? '' : 'Isi ' + header + '...'}"
                     >
                 `;
                 container.appendChild(div);
@@ -242,74 +200,70 @@
             document.getElementById('searchSection').classList.remove('hidden');
             document.getElementById('inputNisn').value = '';
             document.getElementById('inputNama').value = '';
-            currentStudentIndex = -1;
-            document.getElementById('alertBox').classList.add('hidden');
+            currentStudentRow = -1;
+            hideAlert();
         });
 
-        // Event Menyimpan Form
-        document.getElementById('studentForm').addEventListener('submit', function(e) {
+        // Event Menyimpan Form ke Google Spreadsheet
+        document.getElementById('studentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            if(currentStudentIndex === -1) return;
+            if(currentStudentRow === -1) return;
 
             const formData = new FormData(e.target);
+            const dataToUpdate = {};
             
-            // Perbarui data di Array JS
+            // Konversi FormData ke plain object
             for(let [key, value] of formData.entries()) {
-                parsedData[currentStudentIndex][key] = value.trim();
+                dataToUpdate[key] = value.trim();
             }
 
-            showAlert('Data berhasil diperbarui di sistem! Mengunduh file CSV terbaru...', 'success');
-            
-            // Generate ulang dan Unduh File CSV
-            downloadUpdatedCSV();
-
-            // Kembali ke layar pencarian setelah beberapa detik
-            setTimeout(() => {
-                document.getElementById('btnCancel').click();
-                showAlert('Pembaruan selesai. Anda dapat mencari data siswa lain.', 'success');
-            }, 3000);
-        });
-
-        // Fungsi mengubah Array of Objects kembali menjadi string CSV
-        function arrayToCSV(data, columns) {
-            // Escape dan bungkus dengan kutip jika ada koma
-            const escapeCSV = (str) => {
-                if(str === null || str === undefined) return '';
-                str = String(str);
-                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
+            // Payload untuk dikirim ke GAS
+            const payload = {
+                action: 'update',
+                row: currentStudentRow,
+                data: dataToUpdate
             };
 
-            const headerRow = columns.map(escapeCSV).join(',');
-            const rows = data.map(rowObj => {
-                return columns.map(col => escapeCSV(rowObj[col])).join(',');
-            });
-            return [headerRow, ...rows].join('\r\n');
-        }
+            // Ubah UI Button menjadi proses Loading
+            const btnSave = document.getElementById('btnSave');
+            document.getElementById('btnSaveText').innerText = "Menyimpan Data...";
+            document.getElementById('btnSaveLoader').classList.remove('hidden');
+            btnSave.disabled = true;
 
-        // Memicu pengunduhan file
-        function downloadUpdatedCSV() {
-            const csvContent = arrayToCSV(parsedData, csvHeaders);
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", "UPDATE_DATA_SISWA_DAPODIK_kelas_X.csv");
-            link.style.visibility = 'hidden';
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+            try {
+                // Gunakan text/plain method untuk melewati pembatasan preflight CORS browser ke Apps Script
+                const response = await fetch(APPSCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
 
-        // Menjalankan fungsi fetch saat pertama kali load
-        window.onload = function() {
-            loadInitialCSV();
-        }
+                if(result.status === 'success') {
+                    showAlert('Data berhasil disimpan ke Spreadsheet sekolah!', 'success');
+                    
+                    // Otomatis kembali ke halaman awal setelah 3 detik
+                    setTimeout(() => {
+                        document.getElementById('btnCancel').click();
+                        showAlert('Pembaruan selesai. Anda dapat mencari data siswa lain.', 'success');
+                    }, 3000);
+                } else {
+                    showAlert('Gagal menyimpan: ' + result.message, 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showAlert('Terjadi kesalahan saat menyimpan data. Cek koneksi Anda.', 'error');
+            } finally {
+                // Kembalikan UI button
+                document.getElementById('btnSaveText').innerText = "Simpan ke Spreadsheet";
+                document.getElementById('btnSaveLoader').classList.add('hidden');
+                btnSave.disabled = false;
+            }
+        });
     </script>
 </body>
 </html>
