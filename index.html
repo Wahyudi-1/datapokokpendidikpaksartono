@@ -84,7 +84,7 @@
         // =========================================================================
         // PENTING: GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA
         // =========================================================================
-        const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycby_SAMPLE_UBAH_DISINI_w21kXU/exec'; 
+        const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwRuZt6e3LKp4KKT1ihCUFWwKy9ihI6XH9xbZLojDtYlVzal15MWapiN5hzKdIIC-0ykw/exec'; 
 
         // State management
         let currentStudentRow = -1; 
@@ -110,7 +110,7 @@
 
         // Event Pencarian Siswa (GET ke AppScript)
         document.getElementById('btnSearch').addEventListener('click', async function() {
-            if (APPSCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbwRuZt6e3LKp4KKT1ihCUFWwKy9ihI6XH9xbZLojDtYlVzal15MWapiN5hzKdIIC-0ykw/exec')) {
+            if (APPSCRIPT_URL.includes('SAMPLE_UBAH_DISINI')) {
                 showAlert('Error: URL Google Apps Script belum disetel oleh Admin.', 'error');
                 return;
             }
